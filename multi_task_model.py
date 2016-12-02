@@ -127,8 +127,7 @@ class FinancialTimeSeriesAnalysisModel(object):
                 print("%s: %s" % (w.shape, w))
 
     def model_eval(self, X, y):
-        y_hat = self.model.predict(X, batch_size=1)
-        print y_hat.shape
+        y_hat = self.model.predict(X, batch_size=1)[0]
         count_true = 0
         count_all = y.shape[1]
         for i in range(y.shape[1]):
@@ -165,6 +164,6 @@ if __name__ == '__main__':
 
     financial_time_series_model = FinancialTimeSeriesAnalysisModel(200,5,batch_size=32,model_path="multask_ta.model.weights")
     financial_time_series_model.compile_model()
-    #financial_time_series_model.fit_model(X,y)
-    #financial_time_series_model.save()
+    financial_time_series_model.fit_model(X,y)
+    financial_time_series_model.save()
     financial_time_series_model.model_eval(X_test,y_test)
