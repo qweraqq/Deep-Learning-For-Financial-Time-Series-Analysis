@@ -25,7 +25,7 @@ def time_series_normalization(X, mode=0):
     else:
         X[:, 4] /= 100
     X[:, 3] = X[:, 3]/100  # p_change
-    r_y = np.copy(X[2:, 3])*100
+    r_y = np.copy(X[2:, 3])
     tmp = X[1:, :]  # close, remove first day which do not have a previous close
     last_day_close = X[0:-1, 5]
     last_day_close = last_day_close.reshape((len(last_day_close), 1))
@@ -50,23 +50,25 @@ def y_transform(y):
     :param y:
     :return:
     """
-    if y <= -6:
+    y = y*100
+    if y <= -3:
         r = 0
-    elif y > -6 and y <= -3:
-        r = 1
     elif y > -3 and y <= -1:
+        r = 1
+    elif y > -1 and y <= -0.5:
         r = 2
-    elif y > -1 and y <= 0:
+    elif y > -0.5 and y <= 0:
         r = 3
-    elif y > 0 and y <= 1:
+    elif y > 0 and y <= 0.5:
         r = 4
-    elif y > 1 and y <= 3:
+    elif y > 0.5 and y <= 1:
          r = 5
-    elif y > 3 and y <= 6:
+    elif y > 1 and y <= 3:
         r = 6
     else:
         r = 7
     return r
+
 
 def read_single_financial_series_file(filename, mode=0):
     """

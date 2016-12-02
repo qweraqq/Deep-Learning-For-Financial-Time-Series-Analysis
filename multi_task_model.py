@@ -1,6 +1,5 @@
 # -*- coding: UTF-8 -*-
 from __future__ import division
-__author__ = 'shenxiangxiang@gmail.com'
 import os
 from keras.engine.training import Model
 from keras.layers import Input,LSTM, Dense
@@ -12,11 +11,12 @@ from keras.preprocessing import sequence
 from helper import *
 import numpy as np
 import theano.tensor as T
-#from keras.utils.visualize_util import plot
-
+from keras.utils.visualize_util import plot
+__author__ = 'shenxiangxiang@gmail.com'
 nb_hidden_units = 200
 dropout = 0.1
 l2_norm_alpha = 0.00001
+nb_labels = 8
 
 
 def custom_objective1(y_true, y_pred):
@@ -27,7 +27,7 @@ def custom_objective1(y_true, y_pred):
     :return: cost
     """
     # weight_matrix = ((y1 * y)<0)
-    weight_matrix = 0.5*((y_true*y_pred) < 0)
+    weight_matrix = 1 * ((y_true*y_pred) < 0)
     # T.abs_(y1-y)
     # (y1-y)**2
     # (weight_matrix)
@@ -42,14 +42,16 @@ def custom_objective2(y_true, y_pred):
     :return: cost
     """
     # weight_matrix = ((y1 * y)<0)
-    weight_matrix = T.exp(T.abs_(y_true-y_pred)/10)
+    weight_matrix = T.exp(T.abs_(y_true-y_pred))
     # T.abs_(y1-y)
     # (y1-y)**2
     # (weight_matrix)
     return T.mean(0.5*weight_matrix*(y_true-y_pred)**2)
 
+
 class FinancialTimeSeriesAnalysisModel(object):
     model = None
+
     def __init__(self, nb_time_step, dim_data, batch_size=1, model_path=None):
         self.model_path = model_path
         self.model_path = model_path
@@ -65,30 +67,43 @@ class FinancialTimeSeriesAnalysisModel(object):
         dim_data = self.size_of_input_data_dim
         nb_time_step = self.size_of_input_timesteps
         financial_time_series_input = Input(shape=(nb_time_step, dim_data))
-        lstm_layer_1 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout, inner_activation='sigmoid',
+        lstm_layer_1 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
                             W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
                             return_sequences=True)
-        lstm_layer_21 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout, inner_activation='sigmoid',
+        lstm_layer_21 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
                              W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
                              return_sequences=True)
-        lstm_layer_22 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout, inner_activation='sigmoid',
-                           W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
+        lstm_layer_22 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
+                             W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
                              return_sequences=True)
-        lstm_layer_23 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout, inner_activation='sigmoid',
+        lstm_layer_23 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
                              W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
                              return_sequences=True)
 
+        lstm_layer_24 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
+                             W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
+                             return_sequences=True)
+
+        lstm_layer_25 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
+                             W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
+                             return_sequences=True)
         h1 = lstm_layer_1(financial_time_series_input)
         h21 = lstm_layer_21(h1)
         h22 = lstm_layer_22(h1)
         h23 = lstm_layer_23(h1)
-        time_series_predictions1 = TimeDistributed(Dense(1),name="p1")(h21)
-        time_series_predictions2 = TimeDistributed(Dense(1),name="p2")(h22)
-        time_series_predictions3 = TimeDistributed(Dense(1),name="p3")(h23)
+        h24 = lstm_layer_24(h1)
+        h25 = lstm_layer_25(h1)
+        time_series_predictions1 = TimeDistributed(Dense(1), name="p1")(h21)  # custom 1
+        time_series_predictions2 = TimeDistributed(Dense(1), name="p2")(h22)  # custom 2
+        time_series_predictions3 = TimeDistributed(Dense(1), name="p3")(h23)  # mse
+        time_series_predictions4 = TimeDistributed(Dense(1, activation='sigmoid'), name="p4")(h24)  # logloss
+        time_series_predictions5 = TimeDistributed(Dense(nb_labels, activation='softmax'), name="p5")(h25)  # cross
         self.model = Model(input=financial_time_series_input,
-                           output=[time_series_predictions1,time_series_predictions2,time_series_predictions3],
+                           output=[time_series_predictions1, time_series_predictions2,
+                                   time_series_predictions3, time_series_predictions4,
+                                   time_series_predictions5],
                            name="multi-task deep rnn for financial time series forecasting")
-        #plot(self.model, to_file='model.png')
+        plot(self.model, to_file='model.png')
 
     def reset(self):
         for l in self.model.layers:
@@ -97,18 +112,14 @@ class FinancialTimeSeriesAnalysisModel(object):
 
     def compile_model(self, lr=0.0001, arg_weight=1.):
         optimizer = Adam(lr=lr)
-        loss = [custom_objective1, custom_objective2, 'mse']
+        loss = [custom_objective1, custom_objective2, 'mse', 'binary_crossentropy', 'categorical_crossentropy']
         self.model.compile(optimizer=optimizer, loss=loss)
 
-    def fit_model(self, X, y, X_val = None, y_val = None, epoch=300):
-        early_stopping = EarlyStopping(monitor='val_loss',patience=3, verbose=0)
-        if X_val is None:
-            self.model.fit(X, [y]*3, batch_size=self.batch_size, nb_epoch=epoch, validation_split=0.2,
-                           shuffle=True, callbacks=[early_stopping])
-        else:
-            self.model.fit(X, y, batch_size=self.batch_size, nb_epoch=epoch, validation_data=(X_val, y_val),
-                           shuffle=True, callbacks=[early_stopping])
+    def fit_model(self, X, y, y_label, epoch=300):
+        early_stopping = EarlyStopping(monitor='val_loss', patience=3, verbose=0)
 
+        self.model.fit(X, [y]*3 + [y > 0] + [y_label], batch_size=self.batch_size, nb_epoch=epoch, validation_split=0.2,
+                       shuffle=True, callbacks=[early_stopping])
 
     def save(self):
         self.model.save_weights(self.model_path, overwrite=True)
@@ -132,13 +143,14 @@ class FinancialTimeSeriesAnalysisModel(object):
         count_all = y.shape[1]
         for i in range(y.shape[1]):
             count_true = count_true + 1 if y[0,i,0]*y_hat[0,i,0]>0 else count_true
-            print y[0,i,0],y_hat[0,i,0]
-        print count_all,count_true
+            print(y[0,i,0],y_hat[0,i,0])
+        print(count_all,count_true)
+
 
 if __name__ == '__main__':
     max_len = 200
     this_file_path = os.path.dirname(os.path.abspath(__file__))
-    training_set_path = os.path.join(this_file_path,"data",)
+    training_set_path = os.path.join(this_file_path, "data",)
     file_list = os.listdir(training_set_path,)
     X = None
     y = None
@@ -150,7 +162,7 @@ if __name__ == '__main__':
         X = X_tmp if X is None else np.vstack((X, X_tmp))
         y = y_tmp if y is None else np.vstack((y, y_tmp))
 
-    training_set_path = os.path.join(this_file_path,"testdata",)
+    training_set_path = os.path.join(this_file_path, "testdata",)
     file_list = os.listdir(training_set_path,)
     X_test = None
     y_test = None
@@ -162,8 +174,13 @@ if __name__ == '__main__':
         X_test = X_tmp if X_test is None else np.vstack((X_test, X_tmp))
         y_test = y_tmp if y_test is None else np.vstack((y_test, y_tmp))
 
-    financial_time_series_model = FinancialTimeSeriesAnalysisModel(200,5,batch_size=32,model_path="multask_ta.model.weights")
+    y_label = np.zeros((y.shape[0], y.shape[1], nb_labels))
+    for i in range(y.shape[0]):
+        for j in range(y.shape[1]):
+            y_label[i, j, y_transform(y[i, j, 0])] = 1
+    financial_time_series_model = FinancialTimeSeriesAnalysisModel(200, 5, batch_size=512,
+                                                                   model_path="multask_ta.model.weights")
     financial_time_series_model.compile_model()
-    financial_time_series_model.fit_model(X,y)
+    financial_time_series_model.fit_model(X, y, y_label, epoch=2)
     financial_time_series_model.save()
-    financial_time_series_model.model_eval(X_test,y_test)
+    financial_time_series_model.model_eval(X_test, y_test)

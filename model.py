@@ -1,6 +1,5 @@
 # -*- coding: UTF-8 -*-
 from __future__ import division
-__author__ = 'shenxiangxiang@gmail.com'
 import os
 from keras.engine.training import Model
 from keras.layers import Input,LSTM, TimeDistributedDense
@@ -8,8 +7,11 @@ from keras.optimizers import Adam
 from keras.regularizers import l2
 from keras.callbacks import EarlyStopping
 from keras.preprocessing import sequence
+from keras.utils.np_utils import to_categorical
+
 from helper import *
 import numpy as np
+__author__ = 'shenxiangxiang@gmail.com'
 
 nb_hidden_units = 200
 dropout = 0.1
@@ -18,6 +20,7 @@ l2_norm_alpha = 0.00001
 
 class FinancialTimeSeriesAnalysisModel(object):
     model = None
+
     def __init__(self, nb_time_step, dim_data, batch_size=1, model_path=None):
         self.model_path = model_path
         self.model_path = model_path
@@ -57,7 +60,7 @@ class FinancialTimeSeriesAnalysisModel(object):
         loss = 'mse'
         self.model.compile(optimizer=optimizer, loss=loss)
 
-    def fit_model(self, X, y, X_val = None, y_val = None, epoch=300):
+    def fit_model(self, X, y, X_val=None, y_val=None, epoch=3):
         early_stopping = EarlyStopping(monitor='val_loss',patience=3, verbose=0)
         if X_val is None:
             self.model.fit(X, y, batch_size=self.batch_size, nb_epoch=epoch, validation_split=0.2,
@@ -65,7 +68,6 @@ class FinancialTimeSeriesAnalysisModel(object):
         else:
             self.model.fit(X, y, batch_size=self.batch_size, nb_epoch=epoch, validation_data=(X_val, y_val),
                            shuffle=True, callbacks=[early_stopping])
-
 
     def save(self):
         self.model.save_weights(self.model_path, overwrite=True)
@@ -89,8 +91,9 @@ class FinancialTimeSeriesAnalysisModel(object):
         count_all = y.shape[1]
         for i in range(y.shape[1]):
             count_true = count_true + 1 if y[0,i,0]*y_hat[0,i,0]>0 else count_true
-            print y[0,i,0],y_hat[0,i,0]
-        print count_all,count_true
+            print(y[0,i,0], y_hat[0,i,0])
+        print(count_all, count_true)
+
 
 if __name__ == '__main__':
     max_len = 200
@@ -106,21 +109,26 @@ if __name__ == '__main__':
         y_tmp = sequence.pad_sequences(y_tmp, maxlen=max_len, dtype='float32')
         X = X_tmp if X is None else np.vstack((X, X_tmp))
         y = y_tmp if y is None else np.vstack((y, y_tmp))
+    nb_labels = 8
+    y_label = np.zeros((y.shape[0], y.shape[1], nb_labels))
+    for i in range(y.shape[0]):
+        for j in range(y.shape[1]):
+            y_label[i, j, y_transform(y[i, j, 0])] = 1
 
-    training_set_path = os.path.join(this_file_path,"testdata",)
-    file_list = os.listdir(training_set_path,)
-    X_test = None
-    y_test = None
-    for idx, f in enumerate(file_list):
-        file_path = os.path.join(training_set_path, f)
-        X_tmp, y_tmp = read_single_financial_series_file(file_path,mode=1)
-        X_tmp = sequence.pad_sequences(X_tmp, maxlen=max_len, dtype='float32')
-        y_tmp = sequence.pad_sequences(y_tmp, maxlen=max_len, dtype='float32')
-        X_test = X_tmp if X_test is None else np.vstack((X_test, X_tmp))
-        y_test = y_tmp if y_test is None else np.vstack((y_test, y_tmp))
+    # training_set_path = os.path.join(this_file_path,"testdata",)
+    # file_list = os.listdir(training_set_path,)
+    # X_test = None
+    # y_test = None
+    # for idx, f in enumerate(file_list):
+    #     file_path = os.path.join(training_set_path, f)
+    #     X_tmp, y_tmp = read_single_financial_series_file(file_path,mode=1)
+    #     X_tmp = sequence.pad_sequences(X_tmp, maxlen=max_len, dtype='float32')
+    #     y_tmp = sequence.pad_sequences(y_tmp, maxlen=max_len, dtype='float32')
+    #     X_test = X_tmp if X_test is None else np.vstack((X_test, X_tmp))
+    #     y_test = y_tmp if y_test is None else np.vstack((y_test, y_tmp))
 
-    financial_time_series_model = FinancialTimeSeriesAnalysisModel(200,5,batch_size=32,model_path="ta.model.weights")
-    financial_time_series_model.compile_model()
-    # financial_time_series_model.fit_model(X,y)
+    # financial_time_series_model = FinancialTimeSeriesAnalysisModel(200,5,batch_size=32,model_path="ta.model.weights")
+    # financial_time_series_model.compile_model()
+    # financial_time_series_model.fit_model(X, y)
     # financial_time_series_model.save()
-    financial_time_series_model.model_eval(X_test,y_test)
+    # financial_time_series_model.model_eval(X_test, y_test)
