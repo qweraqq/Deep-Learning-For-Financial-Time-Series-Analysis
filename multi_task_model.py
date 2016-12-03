@@ -14,7 +14,7 @@ import theano.tensor as T
 from keras.utils.visualize_util import plot
 __author__ = 'shenxiangxiang@gmail.com'
 nb_hidden_units = 200
-dropout = 0.1
+dropout = 0.2
 l2_norm_alpha = 0.00001
 nb_labels = 8
 
@@ -66,27 +66,27 @@ class FinancialTimeSeriesAnalysisModel(object):
     def build(self):
         dim_data = self.size_of_input_data_dim
         nb_time_step = self.size_of_input_timesteps
-        financial_time_series_input = Input(shape=(nb_time_step, dim_data))
+        financial_time_series_input = Input(shape=(nb_time_step, dim_data), name='x1')
         lstm_layer_1 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
                             W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
-                            return_sequences=True)
+                            return_sequences=True, name='lstm_layer1')
         lstm_layer_21 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
                              W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
-                             return_sequences=True)
+                             return_sequences=True, name='lstm_layer2_loss1')
         lstm_layer_22 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
                              W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
-                             return_sequences=True)
+                             return_sequences=True, name='lstm_layer2_loss2')
         lstm_layer_23 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
                              W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
-                             return_sequences=True)
+                             return_sequences=True, name='lstm_layer2_loss3')
 
         lstm_layer_24 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
                              W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
-                             return_sequences=True)
+                             return_sequences=True, name='lstm_layer2_loss4')
 
         lstm_layer_25 = LSTM(output_dim=nb_hidden_units, dropout_U=dropout, dropout_W=dropout,
                              W_regularizer=l2(l2_norm_alpha), b_regularizer=l2(l2_norm_alpha), activation='tanh',
-                             return_sequences=True)
+                             return_sequences=True, name='lstm_layer2_loss5')
         h1 = lstm_layer_1(financial_time_series_input)
         h21 = lstm_layer_21(h1)
         h22 = lstm_layer_22(h1)
@@ -118,7 +118,7 @@ class FinancialTimeSeriesAnalysisModel(object):
     def fit_model(self, X, y, y_label, epoch=300):
         early_stopping = EarlyStopping(monitor='val_loss', patience=3, verbose=0)
 
-        self.model.fit(X, [y]*3 + [y > 0] + [y_label], batch_size=self.batch_size, nb_epoch=epoch, validation_split=0.2,
+        self.model.fit(X, [y]*3 + [y > 0] + [y_label], batch_size=self.batch_size, nb_epoch=epoch, validation_split=0.3,
                        shuffle=True, callbacks=[early_stopping])
 
     def save(self):
@@ -148,7 +148,7 @@ class FinancialTimeSeriesAnalysisModel(object):
 
 
 if __name__ == '__main__':
-    max_len = 200
+    max_len = 400
     this_file_path = os.path.dirname(os.path.abspath(__file__))
     training_set_path = os.path.join(this_file_path, "data",)
     file_list = os.listdir(training_set_path,)
@@ -178,9 +178,9 @@ if __name__ == '__main__':
     for i in range(y.shape[0]):
         for j in range(y.shape[1]):
             y_label[i, j, y_transform(y[i, j, 0])] = 1
-    financial_time_series_model = FinancialTimeSeriesAnalysisModel(200, 5, batch_size=512,
+    financial_time_series_model = FinancialTimeSeriesAnalysisModel(max_len, 5, batch_size=64,
                                                                    model_path="multask_ta.model.weights")
-    financial_time_series_model.compile_model()
-    financial_time_series_model.fit_model(X, y, y_label, epoch=2)
+    financial_time_series_model.compile_model(lr=0.001)
+    financial_time_series_model.fit_model(X, y, y_label, epoch=100)
     financial_time_series_model.save()
     financial_time_series_model.model_eval(X_test, y_test)
